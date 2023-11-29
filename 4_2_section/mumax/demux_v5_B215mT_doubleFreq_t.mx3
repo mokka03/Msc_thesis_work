@@ -1,0 +1,83 @@
+timesteps := 7200
+// FixDt = 20.0e-12
+dt_ := 20.0e-12
+runtime := timesteps * dt_;
+
+Nx := 700*2
+Ny := 740*2
+Nz := 1
+
+//Strip found in the Chumak paper
+
+
+dx := 50.0E-9
+dy := 50.0E-9
+dz := 100.0E-9
+
+setgridsize(Nx, Ny, Nz)
+setcellsize(dx, dy, dz)
+
+
+Aex  = 3.65E-12
+alpha_ := 17E-4
+Msat = 115.4e3
+m = uniform(0.0, 0.0, 1.0)
+
+setPBC(0,1,0)
+
+OutputFormat = OVF2_TEXT
+
+alpha_start :=  alpha_  //default / bulk damping
+alpha_end :=  0.5 //maximum damping toward the edge of the structure
+
+dregnum := 60 //number of damping regions per side
+dregthickness := 2;  //thickness of damping regions 
+
+
+for i :=dregnum; i>=0; i--{
+  alpha_local := alpha_start + (alpha_end-alpha_start)*pow(i,2)/pow(dregnum,2)
+  damprect := rect((Nx-(dregnum-i)*dregthickness*2)*dx,(Ny*dy))
+  // print(alpha_local)
+  defregion(i,damprect)
+  alpha.setregion(i, alpha_local)
+}
+
+
+// saturation magnetization
+defregion(255,imageShape("binary_pictures_thresholding/Msat_level_0.png"))
+Msat.setregion(255, 117.39e3)
+alpha.setregion(255, alpha_)
+
+defregion(254,imageShape("binary_pictures_thresholding/Msat_level_1.png"))
+Msat.setregion(254, 112e3)
+alpha.setregion(254, alpha_)
+
+
+save(regions)
+save(alpha)
+save(Msat)
+
+B_ext = vector(0.0,0.0,0.215)
+relax()
+
+save(m)
+
+source_pos :=  120.0   //Position in relative units
+
+excitation_mask := newVectorMask(Nx, Ny, 1)
+for j:=0; j<Ny; j++{
+	excitation_mask.setVector(source_pos, j, 0, vector(0.0, 1.0, 0.0))
+}
+
+f1 := 2.1E+9
+f2 := 2.15E+9
+Amp := 0.5E-3
+
+autosave(m, timesteps*dt_)
+// tableautosave(dt_*10)
+// autosave(B_ext, 1.0E-9)
+
+
+B_ext.add(excitation_mask, Amp*(sin(2*pi*f1*t)+sin(2*pi*f2*t)))
+
+run(runtime)
